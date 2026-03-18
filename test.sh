@@ -21,6 +21,11 @@ assert_id() {
   echo "  -> $name = $value"
 }
 
+# Helper: extract a numeric field value from JSON by key name
+extract_id() {
+  echo "$1" | grep -oE "\"id\":[0-9]+" | grep -oE '[0-9]+'
+}
+
 echo ""
 echo "=========================================="
 echo "  LMS API Integration Test"
@@ -32,8 +37,8 @@ echo "=== CREATE INSTRUCTOR ==="
 INSTRUCTOR=$(curl -s -X POST "$BASE_URL/users" \
   -H "Content-Type: application/json" \
   -d "{\"name\":\"Test Instructor\",\"email\":\"instructor_${TS}@example.com\",\"role\":\"instructor\"}")
-echo "$INSTRUCTOR" | jq .
-INSTRUCTOR_ID=$(echo "$INSTRUCTOR" | jq -r '.id')
+echo "$INSTRUCTOR"
+INSTRUCTOR_ID=$(extract_id "$INSTRUCTOR")
 assert_id "INSTRUCTOR_ID" "$INSTRUCTOR_ID"
 
 # ------------------------------------------------------------------
@@ -42,8 +47,8 @@ echo "=== CREATE STUDENT ==="
 STUDENT=$(curl -s -X POST "$BASE_URL/users" \
   -H "Content-Type: application/json" \
   -d "{\"name\":\"Test Student\",\"email\":\"student_${TS}@example.com\",\"role\":\"student\"}")
-echo "$STUDENT" | jq .
-STUDENT_ID=$(echo "$STUDENT" | jq -r '.id')
+echo "$STUDENT"
+STUDENT_ID=$(extract_id "$STUDENT")
 assert_id "STUDENT_ID" "$STUDENT_ID"
 
 # ------------------------------------------------------------------
@@ -52,8 +57,8 @@ echo "=== CREATE COURSE ==="
 COURSE=$(curl -s -X POST "$BASE_URL/courses" \
   -H "Content-Type: application/json" \
   -d "{\"title\":\"Test Course\",\"description\":\"A course for testing.\",\"instructor_id\":$INSTRUCTOR_ID}")
-echo "$COURSE" | jq .
-COURSE_ID=$(echo "$COURSE" | jq -r '.id')
+echo "$COURSE"
+COURSE_ID=$(extract_id "$COURSE")
 assert_id "COURSE_ID" "$COURSE_ID"
 
 # ------------------------------------------------------------------
@@ -62,8 +67,8 @@ echo "=== CREATE TOPIC 1 ==="
 TOPIC_1=$(curl -s -X POST "$BASE_URL/topics" \
   -H "Content-Type: application/json" \
   -d "{\"course_id\":$COURSE_ID,\"title\":\"Topic One\",\"order_index\":1}")
-echo "$TOPIC_1" | jq .
-TOPIC_1_ID=$(echo "$TOPIC_1" | jq -r '.id')
+echo "$TOPIC_1"
+TOPIC_1_ID=$(extract_id "$TOPIC_1")
 assert_id "TOPIC_1_ID" "$TOPIC_1_ID"
 
 echo ""
@@ -71,8 +76,8 @@ echo "=== CREATE TOPIC 2 ==="
 TOPIC_2=$(curl -s -X POST "$BASE_URL/topics" \
   -H "Content-Type: application/json" \
   -d "{\"course_id\":$COURSE_ID,\"title\":\"Topic Two\",\"order_index\":2}")
-echo "$TOPIC_2" | jq .
-TOPIC_2_ID=$(echo "$TOPIC_2" | jq -r '.id')
+echo "$TOPIC_2"
+TOPIC_2_ID=$(extract_id "$TOPIC_2")
 assert_id "TOPIC_2_ID" "$TOPIC_2_ID"
 
 echo ""
@@ -80,8 +85,8 @@ echo "=== CREATE TOPIC 3 ==="
 TOPIC_3=$(curl -s -X POST "$BASE_URL/topics" \
   -H "Content-Type: application/json" \
   -d "{\"course_id\":$COURSE_ID,\"title\":\"Topic Three\",\"order_index\":3}")
-echo "$TOPIC_3" | jq .
-TOPIC_3_ID=$(echo "$TOPIC_3" | jq -r '.id')
+echo "$TOPIC_3"
+TOPIC_3_ID=$(extract_id "$TOPIC_3")
 assert_id "TOPIC_3_ID" "$TOPIC_3_ID"
 
 # ------------------------------------------------------------------
@@ -92,8 +97,8 @@ for i in 1 2 3 4 5; do
   CARD=$(curl -s -X POST "$BASE_URL/cards" \
     -H "Content-Type: application/json" \
     -d "{\"topic_id\":$TOPIC_1_ID,\"front\":\"Question $i\",\"back\":\"Answer $i\"}")
-  echo "$CARD" | jq .
-  CARD_ID=$(echo "$CARD" | jq -r '.id')
+  echo "$CARD"
+  CARD_ID=$(extract_id "$CARD")
   assert_id "CARD_$i ID" "$CARD_ID"
   CARD_IDS+=("$CARD_ID")
 done
@@ -110,16 +115,16 @@ echo "=== ENROLL STUDENT IN COURSE ==="
 ENROLLMENT=$(curl -s -X POST "$BASE_URL/enrollments" \
   -H "Content-Type: application/json" \
   -d "{\"user_id\":$STUDENT_ID,\"course_id\":$COURSE_ID}")
-echo "$ENROLLMENT" | jq .
-ENROLLMENT_ID=$(echo "$ENROLLMENT" | jq -r '.id')
+echo "$ENROLLMENT"
+ENROLLMENT_ID=$(extract_id "$ENROLLMENT")
 assert_id "ENROLLMENT_ID" "$ENROLLMENT_ID"
 
 # ------------------------------------------------------------------
 echo ""
 echo "=== GET STUDENT ENROLLMENTS ==="
 ENROLLMENTS=$(curl -s "$BASE_URL/enrollments/$STUDENT_ID")
-echo "$ENROLLMENTS" | jq .
-ENROLLED_COURSE_COUNT=$(echo "$ENROLLMENTS" | jq "[.[] | select(.course_id == $COURSE_ID)] | length")
+echo "$ENROLLMENTS"
+ENROLLED_COURSE_COUNT=$(echo "$ENROLLMENTS" | grep -oE "\"course_id\":$COURSE_ID" | wc -l | tr -d ' ')
 if [[ "$ENROLLED_COURSE_COUNT" -lt 1 ]]; then
   echo "ERROR: The enrolled course was not found in GET /enrollments/$STUDENT_ID" >&2
   exit 1
@@ -132,8 +137,8 @@ echo "=== START QUIZ SESSION ==="
 SESSION=$(curl -s -X POST "$BASE_URL/quiz-sessions" \
   -H "Content-Type: application/json" \
   -d "{\"user_id\":$STUDENT_ID,\"topic_id\":$TOPIC_1_ID}")
-echo "$SESSION" | jq .
-SESSION_ID=$(echo "$SESSION" | jq -r '.id')
+echo "$SESSION"
+SESSION_ID=$(extract_id "$SESSION")
 assert_id "SESSION_ID" "$SESSION_ID"
 
 # ------------------------------------------------------------------
@@ -148,8 +153,8 @@ for CID in "${CARD_IDS[@]}"; do
   REVIEW=$(curl -s -X POST "$BASE_URL/quiz-sessions/$SESSION_ID/reviews" \
     -H "Content-Type: application/json" \
     -d "{\"card_id\":$CID,\"user_id\":$STUDENT_ID,\"was_correct\":$CORRECT}")
-  echo "$REVIEW" | jq .
-  REVIEW_ID=$(echo "$REVIEW" | jq -r '.id')
+  echo "$REVIEW"
+  REVIEW_ID=$(extract_id "$REVIEW")
   assert_id "REVIEW_ID (card $CID)" "$REVIEW_ID"
 done
 
@@ -157,8 +162,8 @@ done
 echo ""
 echo "=== COMPLETE QUIZ SESSION ==="
 COMPLETED=$(curl -s -X PATCH "$BASE_URL/quiz-sessions/$SESSION_ID/complete")
-echo "$COMPLETED" | jq .
-COMPLETED_AT=$(echo "$COMPLETED" | jq -r '.completed_at')
+echo "$COMPLETED"
+COMPLETED_AT=$(echo "$COMPLETED" | grep -oE '"completed_at":"[^"]*"' | grep -oE '"[^"]*"$' | tr -d '"')
 if [[ -z "$COMPLETED_AT" || "$COMPLETED_AT" == "null" ]]; then
   echo "ERROR: completed_at is null after PATCH /quiz-sessions/$SESSION_ID/complete" >&2
   exit 1
@@ -169,8 +174,8 @@ echo "  -> Session completed at: $COMPLETED_AT"
 echo ""
 echo "=== GET REVIEWS FOR SESSION ==="
 REVIEWS=$(curl -s "$BASE_URL/quiz-sessions/$SESSION_ID/reviews")
-echo "$REVIEWS" | jq .
-REVIEW_COUNT=$(echo "$REVIEWS" | jq 'length')
+echo "$REVIEWS"
+REVIEW_COUNT=$(echo "$REVIEWS" | grep -oE '"id":[0-9]+' | wc -l | tr -d ' ')
 if [[ "$REVIEW_COUNT" -ne 5 ]]; then
   echo "ERROR: Expected 5 reviews for session $SESSION_ID, got $REVIEW_COUNT" >&2
   exit 1
@@ -183,16 +188,16 @@ echo "=== LOG STUDY SESSION ==="
 STUDY_LOG=$(curl -s -X POST "$BASE_URL/study-logs" \
   -H "Content-Type: application/json" \
   -d "{\"user_id\":$STUDENT_ID,\"topic_id\":$TOPIC_1_ID,\"duration_minutes\":30}")
-echo "$STUDY_LOG" | jq .
-STUDY_LOG_ID=$(echo "$STUDY_LOG" | jq -r '.id')
+echo "$STUDY_LOG"
+STUDY_LOG_ID=$(extract_id "$STUDY_LOG")
 assert_id "STUDY_LOG_ID" "$STUDY_LOG_ID"
 
 # ------------------------------------------------------------------
 echo ""
 echo "=== GET STUDY LOGS FOR STUDENT ==="
 STUDY_LOGS=$(curl -s "$BASE_URL/study-logs/$STUDENT_ID")
-echo "$STUDY_LOGS" | jq .
-STUDY_LOG_COUNT=$(echo "$STUDY_LOGS" | jq "[.[] | select(.id == $STUDY_LOG_ID)] | length")
+echo "$STUDY_LOGS"
+STUDY_LOG_COUNT=$(echo "$STUDY_LOGS" | grep -oE "\"id\":$STUDY_LOG_ID" | wc -l | tr -d ' ')
 if [[ "$STUDY_LOG_COUNT" -lt 1 ]]; then
   echo "ERROR: The created study log was not found in GET /study-logs/$STUDENT_ID" >&2
   exit 1
